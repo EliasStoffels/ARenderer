@@ -16,7 +16,7 @@ const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
 
 namespace arenderer {
 	void ARenderer::Run() {
-        instance.InitWindow();
+        instance.InitWindow("ARenderer");
         InitVulkan();
         MainLoop();
         Cleanup();

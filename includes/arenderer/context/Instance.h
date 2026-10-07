@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 
 #include <vector>
+#include <string>
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -26,7 +27,7 @@ namespace arenderer {
         VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
         bool framebufferResized = false;
 
-        void InitWindow();
+        void InitWindow(const std::string& name);
         void Create();
         void Destroy();
     private:
