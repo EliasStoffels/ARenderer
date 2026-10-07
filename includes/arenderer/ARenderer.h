@@ -13,6 +13,7 @@
 #include "arenderer/context/Device.h"
 #include "arenderer/context/PhysicalDevice.h"
 #include "arenderer/pipeline/RenderPass.h"
+#include "arenderer/pipeline/Descriptor.h"
 
 #include <chrono>
 #include <iostream>
@@ -25,19 +26,6 @@
 #include <set>
 #include <array>
 
-// structs
-//==============================================================================================================================================
-
-struct UniformBufferObject {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
-};
-
-// global static functions
-//==============================================================================================================================================
-
-
 namespace arenderer {
 	class ARenderer {
     public:
@@ -47,10 +35,8 @@ namespace arenderer {
         Instance instance{};
         PhysicalDevice physicalDevice{};
         Device device{};
-        VkQueue graphicsQueue = VK_NULL_HANDLE;
-        VkQueue presentQueue = VK_NULL_HANDLE;
         RenderPass renderPass{};
-        VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+        Descriptor descriptor{};
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline graphicsPipeline = VK_NULL_HANDLE;
         VkCommandPool commandPool = VK_NULL_HANDLE;
@@ -67,23 +53,15 @@ namespace arenderer {
         std::vector<VkDeviceMemory> uniformBuffersMemory{};
         std::vector<void*> uniformBuffersMapped{};
 
-        VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-        std::vector<VkDescriptorSet> descriptorSets;
-
         std::uint32_t mipLevels;
         VkImage textureImage;
         VkDeviceMemory textureImageMemory;
         VkImageView textureImageView;
         VkSampler textureSampler;
 
-        // required extensions
-        std::vector<const char*> GetRequiredExtensions();
-
         // vulkan init
         //==============================================================================================================================================
         void InitVulkan();
-        void LoadModel();
-        VkSampleCountFlagBits GetMaxUsableSampleCount();
 
         // MainLoop
         //==============================================================================================================================================
@@ -98,7 +76,6 @@ namespace arenderer {
         //==============================================================================================================================================
         void Cleanup();
         void CleanupSwapChain();
-        void CreateDescriptorSetLayout();
 
         // sync objects
         //==============================================================================================================================================
@@ -107,8 +84,6 @@ namespace arenderer {
         // vertex buffer
         //==============================================================================================================================================
         void CreateUniformBuffers();
-        void CreateDescriptorPool();
-        void CreateDescriptorSets();
 
         // command buffer
         //==============================================================================================================================================
@@ -135,20 +110,6 @@ namespace arenderer {
         // pipelline
         //==============================================================================================================================================
         void CreateGraphicsPipeline();
-
-        //create surface
-        //==============================================================================================================================================
-        void CreateSurface();
-
-        // instance
-        //==============================================================================================================================================
-        void CreateInstance();
-        // validation layers
-        bool CheckValidationLayerSupport();
-        // populate the debugMessenger struct
-        void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
-        // debug setup (obv)
-        void SetupDebugMessenger();
 
         //create swapchain
         //==========================================================================================================================================

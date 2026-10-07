@@ -9,6 +9,8 @@ namespace arenderer {
 	class Device {
 	public:
 		VkDevice device = VK_NULL_HANDLE;
+		VkQueue graphicsQueue = VK_NULL_HANDLE;
+		VkQueue presentQueue = VK_NULL_HANDLE;
 		void Create(const Instance& instance,const PhysicalDevice& physicalDevice);
 	};
 

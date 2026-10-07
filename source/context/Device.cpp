@@ -50,5 +50,8 @@ namespace arenderer {
         if (vkCreateDevice(physicalDevice.physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
             throw std::runtime_error("failed to create logical device!");
         }
+
+        vkGetDeviceQueue(device, physicalDevice.queueFamilyIndices.graphicsFamily.value(), 0, &graphicsQueue);
+        vkGetDeviceQueue(device, physicalDevice.queueFamilyIndices.presentFamily.value(), 0, &presentQueue);
     }
 }

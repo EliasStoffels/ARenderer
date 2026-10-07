@@ -3,16 +3,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <lib/stb_image.h>
 
-constexpr int MAX_FRAMES_IN_FLIGHT = 2;
-
 const std::string MODEL_PATH = "assets/models/viking_room.obj";
 const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
-
 
 #include "arenderer/ImageView.h"
 #include "arenderer/Buffer.h"
 #include "arenderer/FindMemoryType.h"
-#include <arenderer/Image.h>
+#include "arenderer/Image.h"
+#include "arenderer/context/Constants.h"
 
 namespace arenderer {
 	void ARenderer::Run() {
@@ -26,14 +24,12 @@ namespace arenderer {
         instance.Create();
         physicalDevice.Pick(instance);
         device.Create(instance, physicalDevice);
-        vkGetDeviceQueue(device.device, physicalDevice.queueFamilyIndices.graphicsFamily.value(), 0, &graphicsQueue);
-        vkGetDeviceQueue(device.device, physicalDevice.queueFamilyIndices.presentFamily.value(), 0, &presentQueue);
         swapChain.Create(device.device, physicalDevice, instance.surface, instance.window);
         swapChain.CreateImageViews(device.device);
         swapChain.CreateColorResources(device.device, physicalDevice);
         swapChain.CreateDepthResources(device.device, physicalDevice);
         renderPass.Create(device.device, physicalDevice, swapChain);
-        CreateDescriptorSetLayout();
+        descriptor.CreateDescriptorSetLayout(device.device);
         CreateGraphicsPipeline();
         CreateCommandPool();
         swapChain.CreateFramebuffers(device.device, renderPass.renderPass);
@@ -41,11 +37,11 @@ namespace arenderer {
         CreateTextureImageView();
         CreateTextureSampler();
         model.Load(MODEL_PATH);
-        model.CreateVertexBuffer(device.device, physicalDevice.physicalDevice, commandPool, graphicsQueue);
-        model.CreateIndexBuffer(device.device, physicalDevice.physicalDevice, commandPool, graphicsQueue);
+        model.CreateVertexBuffer(device.device, physicalDevice.physicalDevice, commandPool, device.graphicsQueue);
+        model.CreateIndexBuffer(device.device, physicalDevice.physicalDevice, commandPool, device.graphicsQueue);
         CreateUniformBuffers();
-        CreateDescriptorPool();
-        CreateDescriptorSets();
+        descriptor.CreateDescriptorPool(device.device);
+        descriptor.CreateDescriptorSets(device.device, uniformBuffers, textureImageView,textureSampler);
         CreateCommandBuffers();
         CreateSyncObjects();
     }
@@ -94,7 +90,7 @@ namespace arenderer {
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(device.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
@@ -109,7 +105,7 @@ namespace arenderer {
         presentInfo.pImageIndices = &imageIndex;
         presentInfo.pResults = nullptr; // Optional
 
-        result = vkQueuePresentKHR(presentQueue, &presentInfo);
+        result = vkQueuePresentKHR(device.presentQueue, &presentInfo);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
             RecreateSwapChain();
@@ -139,6 +135,7 @@ namespace arenderer {
         CleanupSwapChain();
 
         vkDestroySampler(device.device, textureSampler, nullptr);
+
         vkDestroyImageView(device.device, textureImageView, nullptr);
         vkDestroyImage(device.device, textureImage, nullptr);
         vkFreeMemory(device.device, textureImageMemory, nullptr);
@@ -148,10 +145,7 @@ namespace arenderer {
             vkFreeMemory(device.device, uniformBuffersMemory[i], nullptr);
         }
 
-        vkDestroyDescriptorPool(device.device, descriptorPool, nullptr);
-
-        vkDestroyDescriptorSetLayout(device.device, descriptorSetLayout, nullptr);
-
+        descriptor.Destroy(device.device);
         model.Destroy(device.device);
 
         vkDestroyPipeline(device.device, graphicsPipeline, nullptr);
@@ -178,32 +172,6 @@ namespace arenderer {
         }
     }
 
-    void ARenderer::CreateDescriptorSetLayout() {
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0;
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
-
-        VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-        samplerLayoutBinding.binding = 1;
-        samplerLayoutBinding.descriptorCount = 1;
-        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.pImmutableSamplers = nullptr;
-        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings = bindings.data();
-
-        if (vkCreateDescriptorSetLayout(device.device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor set layout!");
-        }
-    }
-
     void ARenderer::CreateUniformBuffers() {
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
@@ -215,70 +183,6 @@ namespace arenderer {
             CreateBuffer(device.device, physicalDevice.physicalDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
 
             vkMapMemory(device.device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
-        }
-    }
-
-    void ARenderer::CreateDescriptorPool() {
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(device.device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-    }
-
-    void ARenderer::CreateDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = descriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts = layouts.data();
-
-        descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(device.device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate descriptor sets!");
-        }
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = uniformBuffers[i];
-            bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
-
-            VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = textureImageView;
-            imageInfo.sampler = textureSampler;
-
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-
-            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[0].dstSet = descriptorSets[i];
-            descriptorWrites[0].dstBinding = 0;
-            descriptorWrites[0].dstArrayElement = 0;
-            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[1].dstSet = descriptorSets[i];
-            descriptorWrites[1].dstBinding = 1;
-            descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pImageInfo = &imageInfo;
-
-            vkUpdateDescriptorSets(device.device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
     }
 
@@ -343,7 +247,7 @@ namespace arenderer {
 
         vkCmdBindIndexBuffer(commandBuffer, model.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptor.descriptorSets[currentFrame], 0, nullptr);
 
         vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
 
@@ -482,7 +386,7 @@ namespace arenderer {
             0, nullptr,
             1, &barrier);
 
-        EndSingleTimeCommands(device.device, commandPool, graphicsQueue, commandBuffer);
+        EndSingleTimeCommands(device.device, commandPool, device.graphicsQueue, commandBuffer);
     }
 
     void ARenderer::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
@@ -551,7 +455,7 @@ namespace arenderer {
             1, &barrier
         );
 
-        EndSingleTimeCommands(device.device, commandPool, graphicsQueue, commandBuffer);
+        EndSingleTimeCommands(device.device, commandPool, device.graphicsQueue, commandBuffer);
     }
 
     void ARenderer::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
@@ -583,7 +487,7 @@ namespace arenderer {
             &region
         );
 
-        EndSingleTimeCommands(device.device, commandPool, graphicsQueue, commandBuffer);
+        EndSingleTimeCommands(device.device, commandPool, device.graphicsQueue, commandBuffer);
     }
 
     bool ARenderer::HasStencilComponent(VkFormat format) {
@@ -742,7 +646,7 @@ namespace arenderer {
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1; // Optional
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional
+        pipelineLayoutInfo.pSetLayouts = &descriptor.descriptorSetLayout; // Optional
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
