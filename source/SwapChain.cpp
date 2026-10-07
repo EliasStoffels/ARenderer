@@ -1,6 +1,5 @@
 #include "arenderer/SwapChain.h"
-#include "arenderer/ImageView.h"
-#include "arenderer/Image.h"
+#include "arenderer/resources/Image.h"
 #include "arenderer/context/PhysicalDevice.h"
 
 namespace {

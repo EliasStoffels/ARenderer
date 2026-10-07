@@ -54,4 +54,8 @@ namespace arenderer {
         vkGetDeviceQueue(device, physicalDevice.queueFamilyIndices.graphicsFamily.value(), 0, &graphicsQueue);
         vkGetDeviceQueue(device, physicalDevice.queueFamilyIndices.presentFamily.value(), 0, &presentQueue);
     }
+
+    void Device::Destroy() {
+        vkDestroyDevice(device, nullptr);
+    }
 }

@@ -91,10 +91,10 @@ namespace arenderer {
         }
 
         vkDestroySurfaceKHR(instance, surface, nullptr);
-
         vkDestroyInstance(instance, nullptr);
 
         glfwDestroyWindow(window);
+        glfwTerminate();
     }
 
     //private

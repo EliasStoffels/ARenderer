@@ -12,6 +12,7 @@ namespace arenderer {
 		VkQueue graphicsQueue = VK_NULL_HANDLE;
 		VkQueue presentQueue = VK_NULL_HANDLE;
 		void Create(const Instance& instance,const PhysicalDevice& physicalDevice);
+		void Destroy();
 	};
 
 }

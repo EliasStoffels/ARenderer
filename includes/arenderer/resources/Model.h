@@ -7,6 +7,7 @@
 #include <vector>
 
 namespace arenderer {
+	class Command;
 	class Model {
 	public:
 		std::vector<Vertex> vertices;
@@ -19,8 +20,8 @@ namespace arenderer {
 		void Load(const std::string& modelPath);
 		void Destroy(VkDevice device);
 
-		void CreateVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue);
-		void CreateIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue);
+		void CreateVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, const Command& command, VkQueue graphicsQueue);
+		void CreateIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, const Command& command, VkQueue graphicsQueue);
 
 	};
 }

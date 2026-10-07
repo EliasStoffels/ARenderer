@@ -48,13 +48,15 @@ target_sources(${PROJECT_NAME}
     "source/ARenderer.cpp"
     "source/Vertex.cpp"
     "source/SwapCHain.cpp"
-    "source/Model.cpp"
+    "source/resources/Model.cpp"
+    "source/resources/Texture.cpp"
     "source/context/Instance.cpp"
     "source/context/Device.cpp"
     "source/context/PhysicalDevice.cpp"
     "source/pipeline/RenderPass.cpp"
     "source/pipeline/Descriptor.cpp"
     "source/pipeline/GraphicsPipeline.cpp"
+    "source/sync/Command.cpp"
 )
 
 target_link_libraries(${PROJECT_NAME}

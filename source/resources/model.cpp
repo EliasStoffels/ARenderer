@@ -1,11 +1,12 @@
-#include "arenderer/Model.h"
+#include "arenderer/resources/Model.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <lib/tiny_obj_loader.h>
 #include <print>
 #include <unordered_map>
 
-#include "arenderer/Buffer.h"
+#include "arenderer/resources/Buffer.h"
+#include "arenderer/sync/Command.h"
 
 namespace arenderer {
     void Model::Load(const std::string& modelPath) {
@@ -60,7 +61,7 @@ namespace arenderer {
         vkFreeMemory(device, vertexBufferMemory, nullptr);
     }
 
-    void Model::CreateVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue) {
+    void Model::CreateVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, const Command& command, VkQueue graphicsQueue) {
         VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
         VkBuffer stagingBuffer;
@@ -74,13 +75,13 @@ namespace arenderer {
 
         CreateBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
-        CopyBuffer(device, commandPool, graphicsQueue, stagingBuffer, vertexBuffer, bufferSize);
+        CopyBuffer(device, command, graphicsQueue, stagingBuffer, vertexBuffer, bufferSize);
 
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);
     }
 
-    void Model::CreateIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue) {
+    void Model::CreateIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, const Command& command, VkQueue graphicsQueue) {
         VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
         VkBuffer stagingBuffer;
@@ -94,7 +95,7 @@ namespace arenderer {
 
         CreateBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
 
-        CopyBuffer(device, commandPool, graphicsQueue, stagingBuffer, indexBuffer, bufferSize);
+        CopyBuffer(device, command, graphicsQueue, stagingBuffer, indexBuffer, bufferSize);
 
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);

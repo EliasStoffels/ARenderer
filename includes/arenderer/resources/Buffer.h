@@ -3,8 +3,8 @@
 
 #include <vulkan/vulkan.hpp>
 #include <stdexcept>
-#include "Command.h"
-#include "FindMemoryType.h"
+#include "arenderer/sync/Command.h"
+#include "arenderer/FindMemoryType.h"
 
 namespace arenderer {
     inline void CreateBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
@@ -33,14 +33,14 @@ namespace arenderer {
         vkBindBufferMemory(device, buffer, bufferMemory, 0);
     }
 
-    inline void CopyBuffer(VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device, commandPool);
+    inline void CopyBuffer(VkDevice device,const Command& command, VkQueue graphicsQueue, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+        VkCommandBuffer commandBuffer = command.BeginSingleTimeCommands(device);
 
         VkBufferCopy copyRegion{};
         copyRegion.size = size;
         vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-        EndSingleTimeCommands(device, commandPool, graphicsQueue, commandBuffer);
+        command.EndSingleTimeCommands(device, graphicsQueue, commandBuffer);
     }
 }
 

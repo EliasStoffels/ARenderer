@@ -6,10 +6,10 @@
 const std::string MODEL_PATH = "assets/models/viking_room.obj";
 const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
 
-#include "arenderer/ImageView.h"
-#include "arenderer/Buffer.h"
+#include "arenderer/resources/Buffer.h"
+#include "arenderer/resources/Image.h"
+#include "arenderer/resources/Shader.h"
 #include "arenderer/FindMemoryType.h"
-#include "arenderer/Image.h"
 #include "arenderer/context/Constants.h"
 
 namespace arenderer {
@@ -31,18 +31,18 @@ namespace arenderer {
         renderPass.Create(device.device, physicalDevice, swapChain);
         descriptor.CreateDescriptorSetLayout(device.device);
         CreateGraphicsPipeline();
-        CreateCommandPool();
+        command.CreateCommandPool(device.device, physicalDevice);
+        command.CreateCommandBuffers(device.device, MAX_FRAMES_IN_FLIGHT);
         swapChain.CreateFramebuffers(device.device, renderPass.renderPass);
         CreateTextureImage();
         CreateTextureImageView();
         CreateTextureSampler();
         model.Load(MODEL_PATH);
-        model.CreateVertexBuffer(device.device, physicalDevice.physicalDevice, commandPool, device.graphicsQueue);
-        model.CreateIndexBuffer(device.device, physicalDevice.physicalDevice, commandPool, device.graphicsQueue);
+        model.CreateVertexBuffer(device.device, physicalDevice.physicalDevice, command, device.graphicsQueue);
+        model.CreateIndexBuffer(device.device, physicalDevice.physicalDevice, command, device.graphicsQueue);
         CreateUniformBuffers();
         descriptor.CreateDescriptorPool(device.device);
         descriptor.CreateDescriptorSets(device.device, uniformBuffers, textureImageView,textureSampler);
-        CreateCommandBuffers();
         CreateSyncObjects();
     }
 
@@ -53,6 +53,7 @@ namespace arenderer {
         }
         vkDeviceWaitIdle(device.device);
     }
+
     void ARenderer::DrawFrame() {
         vkWaitForFences(device.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -73,8 +74,8 @@ namespace arenderer {
         // Only reset the fence if we are submitting work
         vkResetFences(device.device, 1, &inFlightFences[currentFrame]);
 
-        vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-        RecordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+        vkResetCommandBuffer(command.commandBuffers[currentFrame], 0);
+        RecordCommandBuffer(command.commandBuffers[currentFrame], imageIndex);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -85,7 +86,7 @@ namespace arenderer {
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+        submitInfo.pCommandBuffers = &command.commandBuffers[currentFrame];
         VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
@@ -152,13 +153,9 @@ namespace arenderer {
         vkDestroyPipelineLayout(device.device, pipelineLayout, nullptr);
         renderPass.Destroy(device.device);
 
-        vkDestroyCommandPool(device.device, commandPool, nullptr);
-
-        vkDestroyDevice(device.device, nullptr);
-
+        command.Destroy(device.device);
+        device.Destroy();
         instance.Destroy();
-
-        glfwTerminate();
     }
 
     void ARenderer::CleanupSwapChain() {
@@ -186,17 +183,36 @@ namespace arenderer {
         }
     }
 
-    void ARenderer::CreateCommandBuffers() {
-        commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+    void ARenderer::CreateTextureImage() {
+        int texWidth, texHeight, texChannels;
+        stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+        VkDeviceSize imageSize = texWidth * texHeight * 4;
+        mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight))));
 
-        if (vkAllocateCommandBuffers(device.device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate command buffers!");
+        if (!pixels) {
+            throw std::runtime_error("failed to load texture image!");
         }
+
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        CreateBuffer(device.device, physicalDevice.physicalDevice, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(device.device, stagingBufferMemory, 0, imageSize, 0, &data);
+        memcpy(data, pixels, static_cast<size_t>(imageSize));
+        vkUnmapMemory(device.device, stagingBufferMemory);
+
+        stbi_image_free(pixels);
+
+        CreateImage(device.device, physicalDevice.physicalDevice, texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+
+        TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+        CopyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+
+        GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, mipLevels);
+
+        vkDestroyBuffer(device.device, stagingBuffer, nullptr);
+        vkFreeMemory(device.device, stagingBufferMemory, nullptr);
     }
 
     void ARenderer::RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -258,50 +274,6 @@ namespace arenderer {
         }
     }
 
-    void ARenderer::CreateCommandPool() {
-
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = physicalDevice.queueFamilyIndices.graphicsFamily.value();
-
-        if (vkCreateCommandPool(device.device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create command pool!");
-        }
-    }
-
-    void ARenderer::CreateTextureImage() {
-        int texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-        VkDeviceSize imageSize = texWidth * texHeight * 4;
-        mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight))));
-
-        if (!pixels) {
-            throw std::runtime_error("failed to load texture image!");
-        }
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        CreateBuffer(device.device, physicalDevice.physicalDevice, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(device.device, stagingBufferMemory, 0, imageSize, 0, &data);
-        memcpy(data, pixels, static_cast<size_t>(imageSize));
-        vkUnmapMemory(device.device, stagingBufferMemory);
-
-        stbi_image_free(pixels);
-
-        CreateImage(device.device, physicalDevice.physicalDevice, texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
-
-        TransitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
-        CopyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-
-        GenerateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, mipLevels);
-
-        vkDestroyBuffer(device.device, stagingBuffer, nullptr);
-        vkFreeMemory(device.device, stagingBufferMemory, nullptr);
-    }
-
     void ARenderer::GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels) {
         // Check if image format supports linear blitting
         VkFormatProperties formatProperties;
@@ -311,7 +283,7 @@ namespace arenderer {
             throw std::runtime_error("texture image format does not support linear blitting!");
         }
 
-        VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device.device, commandPool);
+        VkCommandBuffer commandBuffer = command.BeginSingleTimeCommands(device.device);
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -386,11 +358,11 @@ namespace arenderer {
             0, nullptr,
             1, &barrier);
 
-        EndSingleTimeCommands(device.device, commandPool, device.graphicsQueue, commandBuffer);
+        command.EndSingleTimeCommands(device.device, device.graphicsQueue, commandBuffer);
     }
 
     void ARenderer::TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels) {
-        VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device.device, commandPool);
+        VkCommandBuffer commandBuffer = command.BeginSingleTimeCommands(device.device);
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -455,11 +427,11 @@ namespace arenderer {
             1, &barrier
         );
 
-        EndSingleTimeCommands(device.device, commandPool, device.graphicsQueue, commandBuffer);
+        command.EndSingleTimeCommands(device.device, device.graphicsQueue, commandBuffer);
     }
 
     void ARenderer::CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-        VkCommandBuffer commandBuffer = BeginSingleTimeCommands(device.device, commandPool);
+        VkCommandBuffer commandBuffer = command.BeginSingleTimeCommands(device.device);
 
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -487,7 +459,7 @@ namespace arenderer {
             &region
         );
 
-        EndSingleTimeCommands(device.device, commandPool, device.graphicsQueue, commandBuffer);
+        command.EndSingleTimeCommands(device.device, device.graphicsQueue, commandBuffer);
     }
 
     bool ARenderer::HasStencilComponent(VkFormat format) {
@@ -530,8 +502,8 @@ namespace arenderer {
         auto vertShaderCode = ReadFile("assets/shaders/VertexShader.vert.spv");
         auto fragShaderCode = ReadFile("assets/shaders/FragmentShader.frag.spv");
 
-        VkShaderModule vertShaderModule = CreateShaderModule(vertShaderCode);
-        VkShaderModule fragShaderModule = CreateShaderModule(fragShaderCode);
+        VkShaderModule vertShaderModule = CreateShaderModule(device.device, vertShaderCode);
+        VkShaderModule fragShaderModule = CreateShaderModule(device.device, fragShaderCode);
 
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
         vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -731,34 +703,5 @@ namespace arenderer {
                 throw std::runtime_error("failed to create synchronization objects for a frame!");
             }
         }
-    }
-
-    std::vector<char> ARenderer::ReadFile(const std::string& filename) {
-        std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-        if (!file.is_open()) {
-            throw std::runtime_error("failed to open file!");
-        }
-        size_t fileSize = (size_t)file.tellg();
-        std::vector<char> buffer(fileSize);
-
-        file.seekg(0);
-        file.read(buffer.data(), fileSize);
-
-        file.close();
-        return buffer;
-    }
-
-    VkShaderModule ARenderer::CreateShaderModule(const std::vector<char>& code) {
-        VkShaderModuleCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = code.size();
-        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-        VkShaderModule shaderModule;
-        if (vkCreateShaderModule(device.device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create shader module!");
-        }
-        return shaderModule;
     }
 }

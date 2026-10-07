@@ -8,12 +8,14 @@
 
 #include "arenderer/Vertex.h"
 #include "arenderer/SwapChain.h"
-#include "arenderer/Model.h"
+#include "arenderer/resources/Model.h"
+#include "arenderer/resources/Texture.h"
 #include "arenderer/context/Instance.h"
 #include "arenderer/context/Device.h"
 #include "arenderer/context/PhysicalDevice.h"
 #include "arenderer/pipeline/RenderPass.h"
 #include "arenderer/pipeline/Descriptor.h"
+#include "arenderer/sync/Command.h"
 
 #include <chrono>
 #include <iostream>
@@ -39,8 +41,7 @@ namespace arenderer {
         Descriptor descriptor{};
         VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
         VkPipeline graphicsPipeline = VK_NULL_HANDLE;
-        VkCommandPool commandPool = VK_NULL_HANDLE;
-        std::vector<VkCommandBuffer> commandBuffers;
+        Command command{};
         std::vector<VkSemaphore> imageAvailableSemaphores;
         std::vector<VkSemaphore> renderFinishedSemaphores;
         std::vector<VkFence> inFlightFences;
@@ -87,7 +88,6 @@ namespace arenderer {
 
         // command buffer
         //==============================================================================================================================================
-        void CreateCommandBuffers();
         void RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
         // command pool
@@ -114,11 +114,6 @@ namespace arenderer {
         //create swapchain
         //==========================================================================================================================================
         void RecreateSwapChain();
-
-        // shaders
-        //==============================================================================================================================================
-        static std::vector<char> ReadFile(const std::string& filename);
-        VkShaderModule CreateShaderModule(const std::vector<char>& code);
 	};
 
 } // namespace arenderer
