@@ -54,65 +54,22 @@ namespace arenderer {
         std::vector<VkDeviceMemory> uniformBuffersMemory{};
         std::vector<void*> uniformBuffersMapped{};
 
-        std::uint32_t mipLevels;
-        VkImage textureImage;
-        VkDeviceMemory textureImageMemory;
-        VkImageView textureImageView;
-        VkSampler textureSampler;
+        Texture texture{};
+        VkSampler textureSampler = VK_NULL_HANDLE;
 
-        // vulkan init
-        //==============================================================================================================================================
         void InitVulkan();
-
-        // MainLoop
-        //==============================================================================================================================================
         void MainLoop();
-
-        // FRAME !!!!!!
-        //==============================================================================================================================================
         void DrawFrame();
-        void UpdateUniformBuffer(uint32_t currentImage);
-
-        // cleanup
-        //==============================================================================================================================================
         void Cleanup();
+
+
+        void UpdateUniformBuffer(uint32_t currentImage);
         void CleanupSwapChain();
-
-        // sync objects
-        //==============================================================================================================================================
         void CreateSyncObjects();
-
-        // vertex buffer
-        //==============================================================================================================================================
         void CreateUniformBuffers();
-
-        // command buffer
-        //==============================================================================================================================================
         void RecordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-
-        // command pool
-        //==============================================================================================================================================
-        void CreateCommandPool();
-
-        // image
-        //==============================================================================================================================================
-        void CreateTextureImage();
-        void GenerateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
-        void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
-        void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-        bool HasStencilComponent(VkFormat format);
-
-        // framebuffers
-        //==============================================================================================================================================
-        void CreateTextureImageView();
         void CreateTextureSampler();
-
-        // pipelline
-        //==============================================================================================================================================
         void CreateGraphicsPipeline();
-
-        //create swapchain
-        //==========================================================================================================================================
         void RecreateSwapChain();
 	};
 
