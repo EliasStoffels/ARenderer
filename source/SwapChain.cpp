@@ -30,14 +30,15 @@ namespace {
 }
 
 namespace arenderer {
-    void SwapChain::Create(VkDevice device,const PhysicalDevice& physicalDevice, VkSurfaceKHR surface, GLFWwindow* window) {
-        VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(physicalDevice.swapChainSupportDetails.formats);
-        VkPresentModeKHR presentMode = ChooseSwapPresentMode(physicalDevice.swapChainSupportDetails.presentModes);
-        VkExtent2D extent = ChooseSwapExtent(physicalDevice.swapChainSupportDetails.capabilities, window);
+    void SwapChain::Create(VkDevice device, const PhysicalDevice& physicalDevice, VkSurfaceKHR surface, GLFWwindow* window) {
+        SwapChainSupportDetails swapChainSupport = physicalDevice.QuerySwapChainSupport(surface);
+        VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.formats);
+        VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.presentModes);
+        swapChainExtent = ChooseSwapExtent(swapChainSupport.capabilities, window);
 
-        uint32_t imageCount = physicalDevice.swapChainSupportDetails.capabilities.minImageCount + 1;
-        if (physicalDevice.swapChainSupportDetails.capabilities.maxImageCount > 0 && imageCount > physicalDevice.swapChainSupportDetails.capabilities.maxImageCount) {
-            imageCount = physicalDevice.swapChainSupportDetails.capabilities.maxImageCount;
+        uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+        if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
+            imageCount = swapChainSupport.capabilities.maxImageCount;
         }
 
         VkSwapchainCreateInfoKHR createInfo{};
@@ -46,7 +47,7 @@ namespace arenderer {
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
         createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
+        createInfo.imageExtent = swapChainExtent;
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -63,7 +64,7 @@ namespace arenderer {
             createInfo.pQueueFamilyIndices = nullptr; // Optional
         }
 
-        createInfo.preTransform = physicalDevice.swapChainSupportDetails.capabilities.currentTransform;
+        createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
         createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         createInfo.presentMode = presentMode;
         createInfo.clipped = VK_TRUE;
@@ -78,7 +79,6 @@ namespace arenderer {
         vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
 
         swapChainImageFormat = surfaceFormat.format;
-        swapChainExtent = extent;
     }
 
     void SwapChain::CreateImageViews(VkDevice device) {

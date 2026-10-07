@@ -54,30 +54,6 @@ namespace {
 
         return indices;
     }
-
-    arenderer::SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
-        arenderer::SwapChainSupportDetails details;
-
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &details.capabilities);
-
-        uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
-
-        if (formatCount != 0) {
-            details.formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, details.formats.data());
-        }
-
-        uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
-
-        if (presentModeCount != 0) {
-            details.presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, details.presentModes.data());
-        }
-
-        return details;
-    }
 }
 
 namespace arenderer {
@@ -105,7 +81,37 @@ namespace arenderer {
         }
     }
 
+    // external query
+    SwapChainSupportDetails PhysicalDevice::QuerySwapChainSupport(VkSurfaceKHR surface) const {
+        return QuerySwapChainSupport(surface, physicalDevice);
+    }
+
     //private
+    // used for picking appropriate device
+    SwapChainSupportDetails PhysicalDevice::QuerySwapChainSupport(VkSurfaceKHR surface, VkPhysicalDevice device) const {
+        SwapChainSupportDetails details;
+
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+
+        if (formatCount != 0) {
+            details.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+        }
+
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+
+        if (presentModeCount != 0) {
+            details.presentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+        }
+
+        return details;
+    }
+
     bool PhysicalDevice::CheckDeviceExtensionSupport(VkPhysicalDevice device) {
         uint32_t extensionCount;
         vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -137,8 +143,8 @@ namespace arenderer {
 
         bool swapChainAdequate = false;
         if (extensionsSupported) {
-            swapChainSupportDetails = QuerySwapChainSupport(physicalDevice, surface);
-            swapChainAdequate = !swapChainSupportDetails.formats.empty() && !swapChainSupportDetails.presentModes.empty();
+            SwapChainSupportDetails supportDetails = QuerySwapChainSupport(surface, physicalDevice);
+            swapChainAdequate = !supportDetails.formats.empty() && !supportDetails.presentModes.empty();
         }
 
         VkPhysicalDeviceFeatures supportedFeatures;

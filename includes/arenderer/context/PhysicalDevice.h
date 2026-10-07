@@ -28,9 +28,10 @@ namespace arenderer {
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME
 		};
 		QueueFamilyIndices queueFamilyIndices{};
-		SwapChainSupportDetails swapChainSupportDetails{};
 		void Pick(const Instance& instance);
+		SwapChainSupportDetails QuerySwapChainSupport(VkSurfaceKHR surface) const;
 	private:
+		SwapChainSupportDetails QuerySwapChainSupport(VkSurfaceKHR surface, VkPhysicalDevice device) const;
 		bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
 		bool IsDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
 	};
