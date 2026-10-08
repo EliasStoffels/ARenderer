@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <array>
 #include "arenderer/context/PhysicalDevice.h"
-#include "arenderer/SwapChain.h"
+#include "arenderer/pipeline/SwapChain.h"
 
 namespace arenderer {
     void RenderPass::Create(VkDevice device, const PhysicalDevice& physicalDevice, const SwapChain& swapChain) {

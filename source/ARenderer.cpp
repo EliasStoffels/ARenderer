@@ -3,6 +3,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <lib/stb_image.h>
 
+constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 const std::string MODEL_PATH = "assets/models/viking_room.obj";
 const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
 
@@ -10,7 +11,8 @@ const std::string TEXTURE_PATH = "assets/textures/viking_room.png";
 #include "arenderer/resources/Image.h"
 #include "arenderer/resources/Shader.h"
 #include "arenderer/FindMemoryType.h"
-#include "arenderer/context/Constants.h"
+
+#include <chrono>
 
 namespace arenderer {
 	void ARenderer::Run() {
@@ -24,26 +26,22 @@ namespace arenderer {
         instance.Create();
         physicalDevice.Pick(instance);
         device.Create(instance, physicalDevice);
-        swapChain.Create(device.device, physicalDevice, instance.surface, instance.window);
-        swapChain.CreateImageViews(device.device);
-        swapChain.CreateColorResources(device.device, physicalDevice);
-        swapChain.CreateDepthResources(device.device, physicalDevice);
+        swapChain.Create(device, physicalDevice, instance, MAX_FRAMES_IN_FLIGHT);
         renderPass.Create(device.device, physicalDevice, swapChain);
+        swapChain.CreateFramebuffers(device.device, renderPass.renderPass);
         descriptor.CreateDescriptorSetLayout(device.device);
         CreateGraphicsPipeline();
         command.CreateCommandPool(device.device, physicalDevice);
         command.CreateCommandBuffers(device.device, MAX_FRAMES_IN_FLIGHT);
-        swapChain.CreateFramebuffers(device.device, renderPass.renderPass);
         texture.CreateTextureImage(device, physicalDevice, command, TEXTURE_PATH);
         texture.CreateTextureImageView(device.device);
-        CreateTextureSampler();
+        sampler.Create(device.device, physicalDevice.physicalDevice);
         model.Load(MODEL_PATH);
         model.CreateVertexBuffer(device.device, physicalDevice.physicalDevice, command, device.graphicsQueue);
         model.CreateIndexBuffer(device.device, physicalDevice.physicalDevice, command, device.graphicsQueue);
         CreateUniformBuffers();
-        descriptor.CreateDescriptorPool(device.device);
-        descriptor.CreateDescriptorSets(device.device, uniformBuffers, texture.textureImageView,textureSampler);
-        CreateSyncObjects();
+        descriptor.CreateDescriptorPool(device.device, MAX_FRAMES_IN_FLIGHT);
+        descriptor.CreateDescriptorSets(device.device, uniformBuffers, texture.textureImageView, sampler.textureSampler, MAX_FRAMES_IN_FLIGHT);
     }
 
     void ARenderer::MainLoop() {
@@ -55,10 +53,10 @@ namespace arenderer {
     }
 
     void ARenderer::DrawFrame() {
-        vkWaitForFences(device.device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(device.device, 1, &swapChain.inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(device.device, swapChain.swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(device.device, swapChain.swapChain, UINT64_MAX, swapChain.imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || instance.framebufferResized) {
             instance.framebufferResized = false;
@@ -72,7 +70,7 @@ namespace arenderer {
         UpdateUniformBuffer(currentFrame);
 
         // Only reset the fence if we are submitting work
-        vkResetFences(device.device, 1, &inFlightFences[currentFrame]);
+        vkResetFences(device.device, 1, &swapChain.inFlightFences[currentFrame]);
 
         vkResetCommandBuffer(command.commandBuffers[currentFrame], 0);
         RecordCommandBuffer(command.commandBuffers[currentFrame], imageIndex);
@@ -80,18 +78,18 @@ namespace arenderer {
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
+        VkSemaphore waitSemaphores[] = { swapChain.imageAvailableSemaphores[currentFrame] };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &command.commandBuffers[currentFrame];
-        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
+        VkSemaphore signalSemaphores[] = { swapChain.renderFinishedSemaphores[currentFrame] };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(device.graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(device.graphicsQueue, 1, &submitInfo, swapChain.inFlightFences[currentFrame]) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
@@ -133,10 +131,8 @@ namespace arenderer {
     }
 
     void ARenderer::Cleanup() {
-        CleanupSwapChain();
-
-        vkDestroySampler(device.device, textureSampler, nullptr);
-
+        swapChain.Destroy(device.device);
+        sampler.Destroy(device.device);
         texture.Destroy(device.device);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -154,17 +150,6 @@ namespace arenderer {
         command.Destroy(device.device);
         device.Destroy();
         instance.Destroy();
-    }
-
-    void ARenderer::CleanupSwapChain() {
-
-        swapChain.Destroy(device.device);
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroySemaphore(device.device, renderFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(device.device, imageAvailableSemaphores[i], nullptr);
-            vkDestroyFence(device.device, inFlightFences[i], nullptr);
-        }
     }
 
     void ARenderer::CreateUniformBuffers() {
@@ -240,54 +225,15 @@ namespace arenderer {
         }
     }
 
-    void ARenderer::CreateTextureSampler() {
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_TRUE;
-
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(physicalDevice.physicalDevice, &properties);
-        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
-        samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
-
-        if (vkCreateSampler(device.device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create texture sampler!");
-        }
-    }
-
     void ARenderer::CreateGraphicsPipeline() {
         //shadermodules part of tut
-        auto vertShaderCode = ReadFile("assets/shaders/VertexShader.vert.spv");
-        auto fragShaderCode = ReadFile("assets/shaders/FragmentShader.frag.spv");
+        VkShaderModule vertShaderModule = CreateShaderModule(device.device, "assets/shaders/VertexShader.vert.spv");
+        VkShaderModule fragShaderModule = CreateShaderModule(device.device, "assets/shaders/FragmentShader.frag.spv");
 
-        VkShaderModule vertShaderModule = CreateShaderModule(device.device, vertShaderCode);
-        VkShaderModule fragShaderModule = CreateShaderModule(device.device, fragShaderCode);
-
-        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-        vertShaderStageInfo.module = vertShaderModule;
-        vertShaderStageInfo.pName = "main";
-
-        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragShaderStageInfo.module = fragShaderModule;
-        fragShaderStageInfo.pName = "main";
-
-        VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+        VkPipelineShaderStageCreateInfo shaderStages[] = {
+            CreateShaderInfo(device.device, vertShaderModule, VK_SHADER_STAGE_VERTEX_BIT, "main"),
+            CreateShaderInfo(device.device, fragShaderModule, VK_SHADER_STAGE_FRAGMENT_BIT, "main")
+        };
 
         // fixed functions part of tut
         std::vector<VkDynamicState> dynamicStates = {
@@ -442,36 +388,8 @@ namespace arenderer {
         }
 
         vkDeviceWaitIdle(device.device);
-
-        CleanupSwapChain();
-
-        swapChain.Create(device.device, physicalDevice, instance.surface, instance.window);
-        swapChain.CreateImageViews(device.device);
-        swapChain.CreateColorResources(device.device, physicalDevice);
-        swapChain.CreateDepthResources(device.device, physicalDevice);
+        swapChain.Destroy(device.device);
+        swapChain.Create(device, physicalDevice, instance, MAX_FRAMES_IN_FLIGHT);
         swapChain.CreateFramebuffers(device.device, renderPass.renderPass);
-        CreateSyncObjects();
-    }
-
-    void ARenderer::CreateSyncObjects() {
-        imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VkFenceCreateInfo fenceInfo{};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(device.device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(device.device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(device.device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-
-                throw std::runtime_error("failed to create synchronization objects for a frame!");
-            }
-        }
     }
 }

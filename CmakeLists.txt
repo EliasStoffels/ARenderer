@@ -47,15 +47,16 @@ target_sources(${PROJECT_NAME}
     "source/main.cpp"
     "source/ARenderer.cpp"
     "source/Vertex.cpp"
-    "source/SwapCHain.cpp"
     "source/resources/Model.cpp"
     "source/resources/Texture.cpp"
     "source/context/Instance.cpp"
     "source/context/Device.cpp"
     "source/context/PhysicalDevice.cpp"
+    "source/pipeline/SwapCHain.cpp"
     "source/pipeline/RenderPass.cpp"
     "source/pipeline/Descriptor.cpp"
     "source/pipeline/GraphicsPipeline.cpp"
+    "source/pipeline/Sampler.cpp"
     "source/sync/Command.cpp"
 )
 

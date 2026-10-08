@@ -6,9 +6,14 @@
 #include <GLFW/glfw3.h>
 
 namespace arenderer {
+    class Instance;
+    class Device;
     class PhysicalDevice;
 	class SwapChain {
     public:
+        std::vector<VkSemaphore> imageAvailableSemaphores;
+        std::vector<VkSemaphore> renderFinishedSemaphores;
+        std::vector<VkFence> inFlightFences;
         VkSwapchainKHR swapChain = VK_NULL_HANDLE;
         std::vector<VkImage> swapChainImages{};
         VkFormat swapChainImageFormat{};
@@ -26,19 +31,21 @@ namespace arenderer {
 
         VkFormat depthFormat;
 
-        void Create(VkDevice device, const PhysicalDevice& physicalDevice, VkSurfaceKHR surface, GLFWwindow* windoww);
-        void CreateImageViews(VkDevice device);
-        void CreateDepthResources(VkDevice device, const PhysicalDevice& physicalDevice);
-        void CreateColorResources(VkDevice device, const PhysicalDevice& physicalDevice);
+        void Create(const Device& device, const PhysicalDevice& physicalDevice, const Instance& instance, int maxFramesInFlight);
         void CreateFramebuffers(VkDevice device, VkRenderPass renderPass);
-        void CreateSyncObjects();
         void Destroy(VkDevice device);
 
     private:
+        void CreateSwapChain(VkDevice device, const PhysicalDevice& physicalDevice, VkSurfaceKHR surface, GLFWwindow* windoww, int maxFramesInFlights);
+        void CreateImageViews(VkDevice device);
+        void CreateDepthResources(VkDevice device, const PhysicalDevice& physicalDevice);
+        void CreateColorResources(VkDevice device, const PhysicalDevice& physicalDevice);
+        void CreateSyncObjects(VkDevice device);
+
         VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
         VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window);
         VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-
+        int m_MaxFramesInFlight = 0;
 	};
 }
 

@@ -21,8 +21,8 @@ namespace arenderer {
 		VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
 		std::vector<VkDescriptorSet> descriptorSets;
 		void CreateDescriptorSetLayout(VkDevice device);
-		void CreateDescriptorPool(VkDevice device);
-		void CreateDescriptorSets(VkDevice device, const std::vector<VkBuffer>& uniformBuffers, const VkImageView& textureImageView, const VkSampler& textureSampler);
+		void CreateDescriptorPool(VkDevice device, int maxFramesInFlight);
+		void CreateDescriptorSets(VkDevice device, const std::vector<VkBuffer>& uniformBuffers, const VkImageView& textureImageView, const VkSampler& textureSampler, int maxFramesInFlight);
 		void Destroy(VkDevice device);
 	};
 }

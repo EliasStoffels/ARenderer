@@ -6,6 +6,10 @@
 #include <fstream>
 #include <stdexcept>
 
+namespace {
+
+}
+
 namespace arenderer {
     inline std::vector<char> ReadFile(const std::string& filename) {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -23,7 +27,8 @@ namespace arenderer {
         return buffer;
     }
 
-    inline VkShaderModule CreateShaderModule(VkDevice device, const std::vector<char>& code) {
+    inline VkShaderModule CreateShaderModule(VkDevice device, const std::string& filename) {
+        const std::vector<char>& code = ReadFile(filename);
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = code.size();
@@ -34,6 +39,15 @@ namespace arenderer {
             throw std::runtime_error("failed to create shader module!");
         }
         return shaderModule;
+    }
+
+    inline VkPipelineShaderStageCreateInfo CreateShaderInfo(VkDevice device, VkShaderModule module, VkShaderStageFlagBits shaderStage, const char* name) {
+        VkPipelineShaderStageCreateInfo shaderStageInfo{};
+        shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStageInfo.stage = shaderStage;
+        shaderStageInfo.module = module;
+        shaderStageInfo.pName = name;
+        return shaderStageInfo;
     }
 }
 
