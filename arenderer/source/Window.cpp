@@ -28,19 +28,19 @@ namespace arenderer {
 		glfwPollEvents();
 	}
 
-	void Window::Close() {
+	void Window::Close() const{
 		glfwDestroyWindow(window);
 		glfwTerminate();
 	}
 
-	glm::ivec2 Window::GetSize() {
+	glm::ivec2 Window::GetSize() const{
 		int width;
 		int height;
 		glfwGetWindowSize(window, &width, &height);
 		return { width, height };
 	}
 
-	VkSurfaceKHR Window::GetVkSurface(VkInstance instance, VkSurfaceKHR& surface) {
+	void Window::GetVkSurface(VkInstance instance, VkSurfaceKHR& surface) const {
 		if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create window surface!");
 		}

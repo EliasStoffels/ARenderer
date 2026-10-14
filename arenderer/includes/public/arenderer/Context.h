@@ -2,7 +2,6 @@
 #define ARENDERER_CONTEXT_H
 
 #include <vulkan/vulkan.h>
-
 #include <string>
 
 namespace arenderer {
@@ -11,10 +10,14 @@ namespace arenderer {
 	public:
 		void Init(const Window& window);
 	private:
-		VkInstance instance = VK_NULL_HANDLE;
-		VkSurfaceKHR surface = VK_NULL_HANDLE;
-		VkDevice device = VK_NULL_HANDLE;
-		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+		VkInstance m_Instance = VK_NULL_HANDLE;
+		VkSurfaceKHR m_Surface = VK_NULL_HANDLE;
+		VkDevice m_Device = VK_NULL_HANDLE;
+		VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
+#ifndef NDEBUG
+		VkDebugUtilsMessengerEXT m_DebugMessenger = VK_NULL_HANDLE;
+#endif // DEBUG
+
 	};
 }
 

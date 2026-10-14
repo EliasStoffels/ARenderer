@@ -14,9 +14,9 @@ namespace arenderer {
 		void InitWindow(const std::string& name, int width, int height);
 		bool ShouldClose() const noexcept;
 		void PollEvents();
-		void Close();
-		glm::ivec2 GetSize();
-		VkSurfaceKHR GetVkSurface(VkInstance instance, VkSurfaceKHR& surface);
+		void Close() const;
+		glm::ivec2 GetSize() const;
+		void GetVkSurface(VkInstance instance, VkSurfaceKHR& surface) const;
 	};
 }
 
