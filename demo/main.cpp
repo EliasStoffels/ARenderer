@@ -9,9 +9,8 @@ const std::string WINDOW_NAME = "ARenderer";
 // main
 //==============================================================================================================================================
 int main() {
-    arenderer::ARenderer app{};
+    arenderer::ARenderer app{ WINDOW_NAME, WIDHT, HEIGHT };
     try {
-        app.Init(WINDOW_NAME, WIDHT, HEIGHT);
         app.Run();
     }
     catch (const std::exception& e) {

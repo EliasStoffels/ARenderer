@@ -12,7 +12,7 @@ namespace {
 }
 
 namespace arenderer {
-	void Context::Init(const Window& window) {
+	void Context::Create(const Window& window) {
 		vkb::InstanceBuilder builder;
 
 		//make the vulkan instance, with basic debug features
@@ -26,15 +26,17 @@ namespace arenderer {
 
 		//grab the instance 
 		m_Instance = vkbInstance.instance;
+
 #ifndef NDEBUG
 		m_DebugMessenger = vkbInstance.debug_messenger;
 #endif // DEBUG
 
 		window.GetVkSurface(m_Instance, m_Surface);
 
-		//vulkan 1.3 features
+		//vulkan 1.4 features
 		VkPhysicalDeviceVulkan14Features features14{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES };
 
+		//vulkan 1.3 features
 		VkPhysicalDeviceVulkan13Features features13{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
 		features13.dynamicRendering = true;
 		features13.synchronization2 = true;
@@ -49,7 +51,7 @@ namespace arenderer {
 		//We want a gpu that can write to the SDL surface and supports vulkan 1.3 with the correct features
 		vkb::PhysicalDeviceSelector selector{ vkbInstance };
 		vkb::PhysicalDevice physicalDevice = selector
-			.set_minimum_version(1, 3)
+			.set_minimum_version(1, 4)
 			.set_required_features_14(features14)
 			.set_required_features_13(features13)
 			.set_required_features_12(features12)
@@ -67,6 +69,32 @@ namespace arenderer {
 		// Get the VkDevice handle used in the rest of a vulkan application
 		m_Device = vkbDevice.device;
 		m_PhysicalDevice = physicalDevice.physical_device;
+	}
 
+	void Context::Destroy() {
+		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
+		vkDestroyDevice(m_Device, nullptr);
+
+#ifndef NDEBUG
+		vkb::destroy_debug_utils_messenger(m_Instance, m_DebugMessenger);
+#endif
+
+		vkDestroyInstance(m_Instance, nullptr);
+	}
+
+	VkInstance Context::GetInstance() const noexcept {
+		return m_Instance;
+	}
+
+	VkSurfaceKHR Context::GetSurface() const noexcept {
+		return m_Surface;
+	}
+
+	VkDevice Context::GetDevice() const noexcept{
+		return m_Device;
+	}
+
+	VkPhysicalDevice Context::GetPhysicalDevice() const noexcept{
+		return m_PhysicalDevice;
 	}
 }
