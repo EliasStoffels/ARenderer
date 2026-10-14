@@ -11,24 +11,41 @@ include(FetchContent)
 
 # GLM
 FetchContent_Declare(
-  glm
-  GIT_REPOSITORY https://github.com/g-truc/glm.git
-  GIT_TAG 1.0.3  # or newer release
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.3  # or newer release
 )
 set(GLM_TEST_ENABLE OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glm)
 
 # GLFW
 FetchContent_Declare(
-  glfw
-  GIT_REPOSITORY https://github.com/glfw/glfw.git
-  GIT_TAG 3.5.1      # pick a stable version
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG 3.5.1      # pick a stable version
 )
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw)
+
+# VkBootstrap
+FetchContent_Declare(
+    VulkanBootstrap
+    GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap.git
+    GIT_TAG v1.4.365      # pick a stable version
+)
+FetchContent_MakeAvailable(VulkanBootstrap)
+
+# VMA
+FetchContent_Declare(
+    VMA
+    GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+    GIT_TAG v3.4.0      # pick a stable version
+)
+FetchContent_MakeAvailable(VMA)
+
 
 # Main executable
 add_library(${PROJECT_NAME})
@@ -51,4 +68,6 @@ target_link_libraries(${PROJECT_NAME}
     Vulkan::Vulkan
     glfw
     glm::glm
+    VulkanBootstrap
+    VMA
 )
