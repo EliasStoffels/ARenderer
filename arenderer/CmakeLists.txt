@@ -32,19 +32,24 @@ FetchContent_MakeAvailable(glfw)
 
 # VkBootstrap
 FetchContent_Declare(
-    VulkanBootstrap
+    vkBootstrap
     GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap.git
     GIT_TAG v1.4.365      # pick a stable version
 )
-FetchContent_MakeAvailable(VulkanBootstrap)
+FetchContent_MakeAvailable(vkBootstrap)
 
 # VMA
 FetchContent_Declare(
-    VMA
+    vma
     GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
     GIT_TAG v3.4.0      # pick a stable version
 )
-FetchContent_MakeAvailable(VMA)
+
+FetchContent_GetProperties(vma)
+
+if (NOT vma_POPULATED)
+    FetchContent_MakeAvailable(vma)
+endif()
 
 
 # Main executable
@@ -68,6 +73,6 @@ target_link_libraries(${PROJECT_NAME}
     Vulkan::Vulkan
     glfw
     glm::glm
-    VulkanBootstrap
-    VMA
+    vk-bootstrap::vk-bootstrap
+    GPUOpen::VulkanMemoryAllocator
 )
