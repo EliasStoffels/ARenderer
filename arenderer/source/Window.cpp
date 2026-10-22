@@ -10,7 +10,7 @@ namespace {
 }
 
 namespace arenderer {
-	void Window::InitWindow(const std::string& name, int width, int height) {
+	Window::Window(const std::string& name, int width, int height) {
 		glfwInit();
 
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -20,17 +20,17 @@ namespace arenderer {
 		glfwSetFramebufferSizeCallback(window, FramebufferResizeCallback);
 	}
 
+	Window::~Window() {
+		glfwDestroyWindow(window);
+		glfwTerminate();
+	}
+
 	bool Window::ShouldClose() const noexcept {
 		return glfwWindowShouldClose(window);
 	}
 
 	void Window::PollEvents() {
 		glfwPollEvents();
-	}
-
-	void Window::Close() const{
-		glfwDestroyWindow(window);
-		glfwTerminate();
 	}
 
 	glm::ivec2 Window::GetSize() const{

@@ -68,7 +68,7 @@ target_sources(${PROJECT_NAME}
     "source/Context.cpp"
     "source/Window.cpp"
     "source/SwapChain.cpp"
-)
+    "source/Commands.cpp" "includes/public/arenderer/VulkanCheck.h")
 
 target_link_libraries(${PROJECT_NAME}
     Vulkan::Vulkan

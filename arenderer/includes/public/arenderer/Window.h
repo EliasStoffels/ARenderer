@@ -10,11 +10,17 @@ namespace arenderer {
 	class Window {
 		GLFWwindow* window = nullptr;
 	public:
+		Window(const std::string& name, int width, int height);
+		~Window();
+
+		Window(const Window& other) = delete;
+		Window(Window&& other) = delete;
+		Window& operator= (const Window& other) = delete;
+		Window& operator= (Window&& other) = delete;
+
 		bool framebufferResized = false;
-		void InitWindow(const std::string& name, int width, int height);
 		bool ShouldClose() const noexcept;
 		void PollEvents();
-		void Close() const;
 		glm::ivec2 GetSize() const;
 		void GetVkSurface(VkInstance instance, VkSurfaceKHR& surface) const;
 	};

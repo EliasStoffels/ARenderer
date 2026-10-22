@@ -12,7 +12,7 @@ namespace {
 }
 
 namespace arenderer {
-	void Context::Create(const Window& window) {
+	Context::Context(const Window& window) {
 		vkb::InstanceBuilder builder;
 
 		//make the vulkan instance, with basic debug features
@@ -48,7 +48,7 @@ namespace arenderer {
 
 
 		//use vkbootstrap to select a gpu. 
-		//We want a gpu that can write to the SDL surface and supports vulkan 1.3 with the correct features
+		//We want a gpu that can write to the GLFW surface and supports vulkan 1.4 with the correct features
 		vkb::PhysicalDeviceSelector selector{ vkbInstance };
 		vkb::PhysicalDevice physicalDevice = selector
 			.set_minimum_version(1, 4)
@@ -60,7 +60,6 @@ namespace arenderer {
 			.select()
 			.value();
 
-
 		//create the final vulkan device
 		vkb::DeviceBuilder deviceBuilder{ physicalDevice };
 
@@ -69,9 +68,12 @@ namespace arenderer {
 		// Get the VkDevice handle used in the rest of a vulkan application
 		m_Device = vkbDevice.device;
 		m_PhysicalDevice = physicalDevice.physical_device;
+
+		m_GraphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
+		m_GraphicsQueueFamilyIdx = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
 	}
 
-	void Context::Destroy() {
+	Context::~Context() {
 		vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
 		vkDestroyDevice(m_Device, nullptr);
 
@@ -96,5 +98,9 @@ namespace arenderer {
 
 	VkPhysicalDevice Context::GetPhysicalDevice() const noexcept{
 		return m_PhysicalDevice;
+	}
+
+	uint32_t Context::GetQueueFamilyIndex() const noexcept {
+		return m_GraphicsQueueFamilyIdx;
 	}
 }
